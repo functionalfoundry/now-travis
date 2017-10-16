@@ -5,7 +5,6 @@ const spawn = require('cross-spawn')
 const normalizeUrl = require('normalize-url')
 const urlRegex = require('url-regex')
 const awaitUrl = require('await-url')
-const { fallbackLocale } = require('../config.json')
 
 if (!process.env.CI || !process.env.TRAVIS) {
   throw new Error('Could not detect Travis CI environment')
@@ -17,7 +16,17 @@ async function deploy(context, sha) {
     console.log(`▲ Now ${context} deployment is skipped for forks...`)
     return
   }
-  const { LOCALE: locale, NOW_TOKEN: nowToken, GH_TOKEN: githubToken } = process.env
+  const {
+    ROOT_DIR: rootDir,
+    NOW_NAME: nowName,
+    NOW_ALIAS: nowAlias,
+    NOW_TOKEN: nowToken,
+    GH_TOKEN: githubToken,
+  } = process.env
+
+  if (!rootDir) {
+    throw new Error('Missing required environment variable ROOT_DIR')
+  }
 
   if (!githubToken) {
     throw new Error('Missing required environment variable GH_TOKEN')
@@ -26,8 +35,17 @@ async function deploy(context, sha) {
   if (!nowToken) {
     throw new Error('Missing required environment variable NOW_TOKEN')
   }
+
+  if (!nowName) {
+    throw new Error('Missing required environment variable NOW_NAME')
+  }
+
+  if (!nowAlias) {
+    throw new Error('Missing required environment variable NOW_ALIAS')
+  }
+
   const { TRAVIS_REPO_SLUG, TRAVIS_BUILD_ID } = process.env
-  let target_url = `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+  let targetUrl = `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
 
   const client = github.client(githubToken)
   const ghRepo = client.repo(process.env.TRAVIS_REPO_SLUG)
@@ -47,11 +65,11 @@ async function deploy(context, sha) {
     '--public',
     '--static',
     '--name',
-    `${locale}-glamorous`,
-    `out/${locale}`,
+    nowName,
+    rootDir,
   ])
 
-  target_url = getUrl(result)
+  targetUrl = getUrl(result)
 
   updateStatus({
     state: 'pending',
@@ -59,11 +77,11 @@ async function deploy(context, sha) {
   })
 
   console.log(
-    `🤠 Alrighty, deploy started. Now we're going to ping ${target_url} until it's ready!`
+    `🤠 Alrighty, deploy started. Now we're going to ping ${targetUrl} until it's ready!`
   )
 
   // check on the site for ten minutes every 5 seconds
-  await awaitUrl(target_url, { interval: 5000, tries: 120 }).catch(err => {
+  await awaitUrl(targetUrl, { interval: 5000, tries: 120 }).catch(err => {
     console.error('Error waiting for the deployment to be ready.')
     onError(err)
     throw err
@@ -90,22 +108,16 @@ async function deploy(context, sha) {
   }
 
   function updateStatus(options) {
-    const mergedOptions = Object.assign({ context, target_url }, options)
-    const { description, target_url: url } = mergedOptions
+    const mergedOptions = Object.assign({ context, targetUrl }, options)
+    const { description, targetUrl: url } = mergedOptions
     console.log(`${description}: ${url}`)
-    if (locale === fallbackLocale) {
-      // we can't report status for more than one locale.
-      ghRepo.status(sha, mergedOptions, logError('setting complete status'))
-    }
+    ghRepo.status(sha, mergedOptions, logError('setting complete status'))
   }
 
   function aliasDeploy() {
     // if we're production, then we need to alias things
     console.log(`↪️ We're building for production, so let's alias this!`)
-    const prefix = locale === fallbackLocale ? '' : `${locale}.`
-    const domain = 'glamorous.rocks'
-    const alias = `${prefix}${domain}`
-    const aliasArgs = ['alias', 'set', target_url, alias, '--token', nowToken]
+    const aliasArgs = ['alias', 'set', targetUrl, nowAlias, '--token', nowToken]
     safeLog('spawning shell with command:', `now ${aliasArgs.join(' ')}`)
     return spawnPromise('now', aliasArgs)
   }

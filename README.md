@@ -14,6 +14,17 @@ npm install --dev @functionalfoundry/now-travis
 yarn add --dev @functionalfoundry/now-travis
 ```
 
+## Usage
+
+This version of now-travis requires the following environment
+variables to be defined:
+
+* `ROOT_DIR` — the directory to deploy
+* `NOW_NAME` — the name to use for deployments
+* `NOW_ALIAS` — the now.sh alias to use
+* `NOW_TOKEN` — an access token to deploy to now.sh
+* `GH_TOKEN` — a personal GitHub token to annotate PRs with deployment URLs
+
 ## License
 
 This project is licensed under the MIT License.
