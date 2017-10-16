@@ -1,0 +1,21 @@
+{
+  "name": "@functionalfoundry/now-travis",
+  "version": "0.1.0",
+  "description": "Deploy to now.sh from Travis",
+  "repository": "https://github.com/functionalfoundry/now-travis",
+  "author": "Jannis Pohlmann <jannis@functionalfoundry.com>",
+  "license": "MIT",
+  "files": [
+    "bin",
+    "yarn.lock"
+  ],
+  "bin": {
+    "now-travis": "./bin/now-travis"
+  },
+  "dependencies": {
+    "cross-spawn": "^5.1.0",
+    "now": "^8.3.10",
+    "octonode": "^0.9.0",
+    "url-regex": "^4.1.1"
+  }
+}
