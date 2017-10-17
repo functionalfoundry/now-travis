@@ -12,6 +12,8 @@ const {
   CI,
   GH_TOKEN,
   NOW_ALIAS,
+  NOW_AUTH_USER,
+  NOW_AUTH_PASSWORD,
   NOW_NAME,
   NOW_STATIC,
   NOW_TEAM,
@@ -98,6 +100,14 @@ const deploy = async (context, buildUrl, sha) => {
   if (NOW_TEAM) {
     nowArgs.push('--team', NOW_TEAM)
   }
+  if (NOW_AUTH_USER && NOW_AUTH_PASSWORD) {
+    nowArgs.push(
+      '-e',
+      `AUTH_USER=${NOW_AUTH_USER}`,
+      '-e',
+      `AUTH_PASSWORD=${NOW_AUTH_PASSWORD}`
+    )
+  }
   safeLog('▲ Now / Running command:', `now ${nowArgs.join(' ')}`)
 
   // Perform deployment
@@ -149,8 +159,8 @@ const deploy = async (context, buildUrl, sha) => {
   }
 
   function updateGitHubStatus(options) {
-    const mergedOptions = Object.assign({ context, targetUrl: buildUrl }, options)
-    console.log(`${mergedOptions.description}: ${mergedOptions.targetUrl}`)
+    const mergedOptions = Object.assign({ context, target_url: buildUrl }, options)
+    console.log(`${mergedOptions.description}: ${mergedOptions.target_url}`)
     repo.status(sha, mergedOptions, logOnError('Failed to update GitHub repo status'))
   }
 
