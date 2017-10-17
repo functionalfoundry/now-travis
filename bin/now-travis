@@ -13,6 +13,7 @@ const {
   GH_TOKEN,
   NOW_ALIAS,
   NOW_NAME,
+  NOW_TEAM,
   NOW_TOKEN,
   ROOT_DIR,
   TRAVIS,
@@ -76,8 +77,15 @@ const deploy = async (context, buildUrl, sha) => {
 
   updateGitHubStatus({
     state: 'pending',
-    description: `▲ Now ${context} deployment pending`,
+    description: `▲ Now / ${context} deployment pending`,
   })
+
+  // Switch to the desired now Team, if any
+
+  if (NOW_TEAM) {
+    console.log('▲ Now / Switching to team:', NOW_TEAM)
+    await spawnPromise('./node_modules/.bin/now', ['switch', NOW_TEAM])
+  }
 
   // Prepare deployment
 
@@ -91,31 +99,24 @@ const deploy = async (context, buildUrl, sha) => {
     NOW_NAME,
     ROOT_DIR,
   ]
-  safeLog('Running command:', `./node_modules/.bin/now ${nowArgs.join(' ')}`)
+  safeLog('▲ Now / Running command:', `./node_modules/.bin/now ${nowArgs.join(' ')}`)
 
   // Perform deployment
 
-  let result
-  try {
-    result = await spawnPromise('./node_modules/.bin/now', nowArgs)
-    console.log('Command result:', result)
-  } catch (error) {
-    console.error('Command failed:', error)
-    throw error
-  }
+  const result = await spawnPromise('./node_modules/.bin/now', nowArgs)
   const deploymentUrl = normalizedUrl(result)
 
-  console.log('Deployment URL:', deploymentUrl)
+  console.log('▲ Now / Deployment URL:', deploymentUrl)
 
   // Wait for the deployment to go live
   // Check on the site for ten minutes every 5 seconds
 
   updateGitHubStatus({
     state: 'pending',
-    description: `▲ Now ${context} deployment build started...`,
+    description: `▲ Now / ${context} deployment build started...`,
   })
 
-  console.log(`🤠 Deployment started. Pinging ${deploymentUrl} until it's live!`)
+  console.log(`▲ Now / Deployment started. Pinging ${deploymentUrl} until it's live!`)
 
   await awaitUrl(deploymentUrl, { interval: 5000, tries: 120 }).catch(error => {
     console.error('Error waiting for the deployment to go live')
@@ -123,7 +124,7 @@ const deploy = async (context, buildUrl, sha) => {
     throw error
   })
 
-  console.log('💪 Up and running!')
+  console.log('▲ Now / Up and running!')
 
   // Alias the deployment if we're building a commit on master
 
@@ -133,17 +134,17 @@ const deploy = async (context, buildUrl, sha) => {
 
   // Done, update GitHub one last time
 
-  console.log('🏁 All done!')
+  console.log('▲ Now / All done!')
   updateGitHubStatus({
     state: 'success',
-    description: `▲ Now ${context} deployment is ready`,
+    description: `▲ Now / ${context} deployment is ready`,
   })
 
   function onError(err) {
     safeError(err)
     updateGitHubStatus({
       state: 'error',
-      description: `▲ Now ${context} deployment failed. See Travis logs for details`,
+      description: `▲ Now / ${context} deployment failed. See Travis logs for details`,
     })
   }
 
@@ -155,9 +156,9 @@ const deploy = async (context, buildUrl, sha) => {
 
   function aliasDeploy() {
     // if we're production, then we need to alias things
-    console.log(`↪️ We're building for production, so let's alias this!`)
+    console.log(`▲ Now / Building for production —> Update alias`)
     const aliasArgs = ['alias', 'set', buildUrl, NOW_ALIAS, '--token', NOW_TOKEN]
-    safeLog('Running command:', `./node_modules/.bin/now ${aliasArgs.join(' ')}`)
+    safeLog('▲ Now / Running command:', `now ${aliasArgs.join(' ')}`)
     return spawnPromise('./node_modules/.bin/now', aliasArgs)
   }
 
@@ -230,24 +231,24 @@ const travisBuildUrl =
     : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
 
 if (isFork()) {
-  console.log(`▲ Now ${travisBuildUrl} deployment is skipped for forks...`)
+  console.log(`▲ Now / Building a fork —> Skip ${travisBuildUrl} deployment`)
 } else {
   switch (TRAVIS_EVENT_TYPE) {
     case 'pull_request': {
       deploy('staging', travisBuildUrl, TRAVIS_PULL_REQUEST_SHA).then(null, error =>
-        console.error('Deployment failed:', error)
+        console.error('▲ Now / Deployment failed:', error)
       )
       break
     }
     case 'push': {
       deploy('production', travisBuildUrl, TRAVIS_COMMIT).then(null, error =>
-        console.error(`Deployment failed:`, error)
+        console.error(`▲ Now / Deployment failed:`, error)
       )
       break
     }
     default: {
       console.error(
-        `TRAVIS_EVENT_TYPE=${TRAVIS_EVENT_TYPE} is not supported by now-travis`
+        `▲ Now / TRAVIS_EVENT_TYPE=${TRAVIS_EVENT_TYPE} is not supported by now-travis`
       )
     }
   }
