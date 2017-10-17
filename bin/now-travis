@@ -158,7 +158,7 @@ const deploy = async (context, buildUrl, sha) => {
     console.log(`↪️ We're building for production, so let's alias this!`)
     const aliasArgs = ['alias', 'set', buildUrl, NOW_ALIAS, '--token', NOW_TOKEN]
     safeLog('spawning shell with command:', `now ${aliasArgs.join(' ')}`)
-    return spawnPromise('now', aliasArgs)
+    return spawnPromise('./node_modules/.bin/now', aliasArgs)
   }
 
   function spawnPromise(...args) {
@@ -235,13 +235,13 @@ if (isFork()) {
   switch (TRAVIS_EVENT_TYPE) {
     case 'pull_request': {
       deploy('staging', travisBuildUrl, TRAVIS_PULL_REQUEST_SHA).then(null, error =>
-        console.error('Deployment failed:', error.message)
+        console.error('Deployment failed:', error)
       )
       break
     }
     case 'push': {
       deploy('production', travisBuildUrl, TRAVIS_COMMIT).then(null, error =>
-        console.error(`Deployment failed:`, error.message)
+        console.error(`Deployment failed:`, error)
       )
       break
     }
