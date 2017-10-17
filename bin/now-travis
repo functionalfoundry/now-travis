@@ -130,7 +130,7 @@ const deploy = async (context, buildUrl, sha) => {
     description: `▲ Now ${context} deployment is ready`,
   })
 
-  const onError = err => {
+  function onError(err) {
     safeError(err)
     updateGitHubStatus({
       state: 'error',
@@ -138,13 +138,13 @@ const deploy = async (context, buildUrl, sha) => {
     })
   }
 
-  const updateGitHubStatus = options => {
+  function updateGitHubStatus(options) {
     const mergedOptions = Object.assign({ context, buildUrl }, options)
     console.log(`${mergedOptions.description}: ${mergedOptions.buildUrl}`)
     repo.status(sha, mergedOptions, logOnError('setting complete status'))
   }
 
-  const aliasDeploy = () => {
+  function aliasDeploy() {
     // if we're production, then we need to alias things
     console.log(`↪️ We're building for production, so let's alias this!`)
     const aliasArgs = ['alias', 'set', buildUrl, NOW_ALIAS, '--token', NOW_TOKEN]
@@ -152,7 +152,7 @@ const deploy = async (context, buildUrl, sha) => {
     return spawnPromise('now', aliasArgs)
   }
 
-  const spawnPromise = (...args) => {
+  function spawnPromise(...args) {
     return new Promise((resolve, reject) => {
       const child = spawn(...args)
       let stdout = ''
@@ -181,17 +181,17 @@ const deploy = async (context, buildUrl, sha) => {
     })
   }
 
-  const safeLog = (...args) => {
+  function safeLog(...args) {
     const safeArgs = args.map(s => safeify(s))
     console.log(...safeArgs)
   }
 
-  const safeError = (...args) => {
+  function safeError(...args) {
     const safeArgs = args.map(s => safeify(s))
     console.error(...safeArgs)
   }
 
-  const safeify = (s, safed = []) => {
+  function safeify(s, safed = []) {
     if (safed.indexOf(s) !== -1) {
       return 'CIRCULAR'
     }
