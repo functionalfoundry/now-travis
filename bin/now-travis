@@ -133,7 +133,8 @@ const deploy = async (context, buildUrl, sha) => {
   console.log('▲ Now / All done!')
   updateGitHubStatus({
     state: 'success',
-    description: `▲ Now / ${context} deployment is ready`,
+    description: `▲ Now / ${context} deployment is live`,
+    targetUrl: deploymentUrl,
   })
 
   function onError(err) {
@@ -145,9 +146,9 @@ const deploy = async (context, buildUrl, sha) => {
   }
 
   function updateGitHubStatus(options) {
-    const mergedOptions = Object.assign({ context, buildUrl }, options)
+    const mergedOptions = Object.assign({ context, targetUrl: buildUrl }, options)
     console.log(`${mergedOptions.description}: ${mergedOptions.buildUrl}`)
-    repo.status(sha, mergedOptions, logOnError('setting complete status'))
+    repo.status(sha, mergedOptions, logOnError('Failed to update GitHub repo status'))
   }
 
   function aliasDeploy() {
