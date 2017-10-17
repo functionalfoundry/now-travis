@@ -127,11 +127,18 @@ const deploy = async (context, buildUrl, sha) => {
 
   console.log(`▲ Now / Deployment started. Pinging ${deploymentUrl} until it's live!`)
 
-  await awaitUrl(deploymentUrl, { interval: 5000, tries: 120 }).catch(error => {
-    console.error('Error waiting for the deployment to go live')
-    onError(error)
-    throw error
-  })
+  try {
+    await awaitUrl(deploymentUrl, {
+      interval: 5000,
+      tries: 120,
+    })
+  } catch (error) {
+    if (!(NOW_AUTH_USER && NOW_AUTH_PASSWORD && error.statusCode === 401)) {
+      console.error('Error waiting for the deployment to go live')
+      onError(error)
+      throw error
+    }
+  }
 
   console.log('▲ Now / Up and running!')
 
