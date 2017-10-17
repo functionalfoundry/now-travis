@@ -15,6 +15,7 @@ const {
   NOW_AUTH_USER,
   NOW_AUTH_PASSWORD,
   NOW_NAME,
+  NOW_PRIVATE,
   NOW_STATIC,
   NOW_TEAM,
   NOW_TOKEN,
@@ -86,15 +87,12 @@ const deploy = async (context, buildUrl, sha) => {
 
   // Prepare deployment
 
-  const nowArgs = [
-    '--token',
-    NOW_TOKEN,
-    '--no-clipboard',
-    '--public',
-    '--name',
-    NOW_NAME,
-    ROOT_DIR,
-  ]
+  const nowArgs = ['--token', NOW_TOKEN, '--no-clipboard', '--name', NOW_NAME, ROOT_DIR]
+  if (NOW_PRIVATE === 'true' || NOW_PRIVATE === true) {
+    nowArgs.push('--private')
+  } else {
+    nowArgs.push('--public')
+  }
   if (NOW_STATIC === 'true' || NOW_STATIC === true) {
     nowArgs.push('--static')
   }
