@@ -13,6 +13,7 @@ const {
   GH_TOKEN,
   NOW_ALIAS,
   NOW_NAME,
+  NOW_STATIC,
   NOW_TEAM,
   NOW_TOKEN,
   ROOT_DIR,
@@ -87,11 +88,13 @@ const deploy = async (context, buildUrl, sha) => {
     NOW_TOKEN,
     '--no-clipboard',
     '--public',
-    '--static',
     '--name',
     NOW_NAME,
     ROOT_DIR,
   ]
+  if (NOW_STATIC !== 'false' && NOW_STATIC !== false) {
+    nowArgs.push('--static')
+  }
   if (NOW_TEAM) {
     nowArgs.push('--team', NOW_TEAM)
   }
