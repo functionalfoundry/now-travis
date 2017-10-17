@@ -95,8 +95,17 @@ const deploy = async (context, buildUrl, sha) => {
 
   // Perform deployment
 
-  const result = await spawnPromise('now', nowArgs)
+  let result
+  try {
+    result = await spawnPromise('now', nowArgs)
+    safeLog('Command result:', result)
+  } catch (error) {
+    console.error('Command failed:', error)
+    throw error
+  }
   const deploymentUrl = normalizedUrl(result)
+
+  console.log('Deployment URL:', deploymentUrl)
 
   // Wait for the deployment to go live
   // Check on the site for ten minutes every 5 seconds
@@ -134,7 +143,7 @@ const deploy = async (context, buildUrl, sha) => {
     safeError(err)
     updateGitHubStatus({
       state: 'error',
-      description: `▲ Now ${context} deployment failed. See Travis logs for details.`,
+      description: `▲ Now ${context} deployment failed. See Travis logs for details`,
     })
   }
 
@@ -226,13 +235,13 @@ if (isFork()) {
   switch (TRAVIS_EVENT_TYPE) {
     case 'pull_request': {
       deploy('staging', travisBuildUrl, TRAVIS_PULL_REQUEST_SHA).then(null, error =>
-        console.error(`Deployment failed: ${error}`)
+        console.error('Deployment failed:', error.message)
       )
       break
     }
     case 'push': {
       deploy('production', travisBuildUrl, TRAVIS_COMMIT).then(null, error =>
-        console.error(`Deployment failed: ${error}`)
+        console.error(`Deployment failed:`, error.message)
       )
       break
     }
