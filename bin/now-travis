@@ -91,14 +91,14 @@ const deploy = async (context, buildUrl, sha) => {
     NOW_NAME,
     ROOT_DIR,
   ]
-  safeLog('Running command:', `now ${nowArgs.join(' ')}`)
+  safeLog('Running command:', `./node_modules/.bin/now ${nowArgs.join(' ')}`)
 
   // Perform deployment
 
   let result
   try {
-    result = await spawnPromise('now', nowArgs)
-    safeLog('Command result:', result)
+    result = await spawnPromise('./node_modules/.bin/now', nowArgs)
+    console.log('Command result:', result)
   } catch (error) {
     console.error('Command failed:', error)
     throw error
@@ -157,7 +157,7 @@ const deploy = async (context, buildUrl, sha) => {
     // if we're production, then we need to alias things
     console.log(`↪️ We're building for production, so let's alias this!`)
     const aliasArgs = ['alias', 'set', buildUrl, NOW_ALIAS, '--token', NOW_TOKEN]
-    safeLog('spawning shell with command:', `now ${aliasArgs.join(' ')}`)
+    safeLog('Running command:', `./node_modules/.bin/now ${aliasArgs.join(' ')}`)
     return spawnPromise('./node_modules/.bin/now', aliasArgs)
   }
 
