@@ -80,18 +80,6 @@ const deploy = async (context, buildUrl, sha) => {
     description: `▲ Now / ${context} deployment pending`,
   })
 
-  // Switch to the desired now Team, if any
-
-  if (NOW_TEAM) {
-    console.log('▲ Now / Switching to team:', NOW_TEAM)
-    await spawnPromise('./node_modules/.bin/now', [
-      'switch',
-      '--token',
-      NOW_TOKEN,
-      NOW_TEAM,
-    ])
-  }
-
   // Prepare deployment
 
   const nowArgs = [
@@ -104,6 +92,9 @@ const deploy = async (context, buildUrl, sha) => {
     NOW_NAME,
     ROOT_DIR,
   ]
+  if (NOW_TEAM) {
+    nowArgs.push('--team', NOW_TEAM)
+  }
   safeLog('▲ Now / Running command:', `now ${nowArgs.join(' ')}`)
 
   // Perform deployment
