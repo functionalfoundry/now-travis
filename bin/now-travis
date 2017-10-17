@@ -153,7 +153,7 @@ const deploy = async (context, buildUrl, sha) => {
   function aliasDeploy() {
     // if we're production, then we need to alias things
     console.log(`▲ Now / Building for production —> Update alias`)
-    const aliasArgs = ['alias', 'set', buildUrl, NOW_ALIAS, '--token', NOW_TOKEN]
+    const aliasArgs = ['alias', 'set', deploymentUrl, NOW_ALIAS, '--token', NOW_TOKEN]
     safeLog('▲ Now / Running command:', `now ${aliasArgs.join(' ')}`)
     return spawnPromise('./node_modules/.bin/now', aliasArgs)
   }
