@@ -6,131 +6,153 @@ const normalizeUrl = require('normalize-url')
 const urlRegex = require('url-regex')
 const awaitUrl = require('await-url')
 
-if (!process.env.CI || !process.env.TRAVIS) {
-  throw new Error('Could not detect Travis CI environment')
+// Extract environment variables
+
+const {
+  CI,
+  GH_TOKEN,
+  NOW_ALIAS,
+  NOW_NAME,
+  NOW_TOKEN,
+  ROOT_DIR,
+  TRAVIS,
+  TRAVIS_BUILD_ID,
+  TRAVIS_COMMIT,
+  TRAVIS_EVENT_TYPE,
+  TRAVIS_INSTANCE,
+  TRAVIS_PULL_REQUEST_SHA,
+  TRAVIS_PULL_REQUEST_SLUG,
+  TRAVIS_REPO_SLUG,
+} = process.env
+
+// Validate environment variables
+
+const ensureVar = (v, errmsg) => {
+  if (!v) {
+    throw new Error(errmsg)
+  }
 }
 
-// eslint-disable-next-line max-statements
-async function deploy(context, sha) {
-  if (isFork()) {
-    console.log(`▲ Now ${context} deployment is skipped for forks...`)
-    return
-  }
-  const {
-    ROOT_DIR: rootDir,
-    NOW_NAME: nowName,
-    NOW_ALIAS: nowAlias,
-    NOW_TOKEN: nowToken,
-    GH_TOKEN: githubToken,
-    TRAVIS_INSTANCE: travisInstance,
-  } = process.env
+ensureVar(CI, 'Could not detect Travis CI environment')
+ensureVar(TRAVIS, 'Could not detect Travis CI environment')
+ensureVar(TRAVIS_BUILD_ID, 'TRAVIS_BUILD_ID is not defined')
+ensureVar(TRAVIS_EVENT_TYPE, 'TRAVIS_EVENT_TYPE is not defined')
+ensureVar(TRAVIS_REPO_SLUG, 'TRAVIS_REPO_SLUG is not defined')
 
-  if (!rootDir) {
-    throw new Error('Missing required environment variable ROOT_DIR')
-  }
+ensureVar(GH_TOKEN, 'GH_TOKEN is not defined')
+ensureVar(NOW_ALIAS, 'NOW_ALIAS is not defined')
+ensureVar(NOW_NAME, 'NOW_NAME is not defined')
+ensureVar(NOW_TOKEN, 'NOW_TOKEN is not defined')
+ensureVar(ROOT_DIR, 'ROOT_DIR (e.g. "storybook-static/") is not defined')
+ensureVar(TRAVIS_INSTANCE, 'TRAVIS_INSTANCE ("com" or "org") is not defined')
 
-  if (!travisInstance) {
-    throw new Error('Missing required environment variable TRAVIS_INSTANCE (com, org)')
-  }
+// Deployment logic
 
-  if (!githubToken) {
-    throw new Error('Missing required environment variable GH_TOKEN')
+const isFork = () => {
+  if (!TRAVIS_PULL_REQUEST_SLUG) {
+    return false
+  } else {
+    const [prOwner] = TRAVIS_PULL_REQUEST_SLUG.split('/')
+    const [repoOwner] = TRAVIS_REPO_SLUG.split('/')
+    return prOwner !== repoOwner
   }
+}
 
-  if (!nowToken) {
-    throw new Error('Missing required environment variable NOW_TOKEN')
-  }
+const normalizedUrl = content => {
+  const urls = content.match(urlRegex()) || []
+  return urls.map(url => normalizeUrl(url.trim().replace(/\.+$/, '')))[0]
+}
 
-  if (!nowName) {
-    throw new Error('Missing required environment variable NOW_NAME')
-  }
-
-  if (!nowAlias) {
-    throw new Error('Missing required environment variable NOW_ALIAS')
+const logOnError = message =>
+  function onError(error) {
+    if (error) {
+      console.error(message, error)
+    }
   }
 
-  const { TRAVIS_REPO_SLUG, TRAVIS_BUILD_ID } = process.env
-  let targetUrl =
-    travisInstance === 'com'
-      ? `https://travis-ci.com/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
-      : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+const deploy = async (context, buildUrl, sha) => {
+  const client = github.client(GH_TOKEN)
+  const repo = client.repo(TRAVIS_REPO_SLUG)
 
-  const client = github.client(githubToken)
-  const ghRepo = client.repo(process.env.TRAVIS_REPO_SLUG)
-
-  const isProd = context === 'production'
-  updateStatus({
+  updateGitHubStatus({
     state: 'pending',
     description: `▲ Now ${context} deployment pending`,
   })
 
-  const cliArgs = ['--token', nowToken, '--no-clipboard', '--public']
-  safeLog('spawning shell with command:', `now ${cliArgs.join(' ')}`)
-  const result = await spawnPromise('now', [
+  // Prepare deployment
+
+  const nowArgs = [
     '--token',
-    nowToken,
+    NOW_TOKEN,
     '--no-clipboard',
     '--public',
     '--static',
     '--name',
-    nowName,
-    rootDir,
-  ])
+    NOW_NAME,
+    ROOT_DIR,
+  ]
+  safeLog('Running command:', `now ${nowArgs.join(' ')}`)
 
-  targetUrl = getUrl(result)
+  // Perform deployment
 
-  updateStatus({
+  const result = await spawnPromise('now', nowArgs)
+  const deploymentUrl = normalizedUrl(result)
+
+  // Wait for the deployment to go live
+  // Check on the site for ten minutes every 5 seconds
+
+  updateGitHubStatus({
     state: 'pending',
     description: `▲ Now ${context} deployment build started...`,
   })
 
-  console.log(
-    `🤠 Alrighty, deploy started. Now we're going to ping ${targetUrl} until it's ready!`
-  )
+  console.log(`🤠 Deployment started. Pinging ${deploymentUrl} until it's live!`)
 
-  // check on the site for ten minutes every 5 seconds
-  await awaitUrl(targetUrl, { interval: 5000, tries: 120 }).catch(err => {
-    console.error('Error waiting for the deployment to be ready.')
-    onError(err)
-    throw err
+  await awaitUrl(deploymentUrl, { interval: 5000, tries: 120 }).catch(error => {
+    console.error('Error waiting for the deployment to go live')
+    onError(error)
+    throw error
   })
 
-  console.log(`💪 it's up and ready!`)
+  console.log('💪 Up and running!')
 
-  if (isProd) {
+  // Alias the deployment if we're building a commit on master
+
+  if (context === 'production') {
     await aliasDeploy()
   }
 
-  console.log('🏁 all done!')
-  updateStatus({
+  // Done, update GitHub one last time
+
+  console.log('🏁 All done!')
+  updateGitHubStatus({
     state: 'success',
-    description: `▲ Now ${context} deployment complete`,
+    description: `▲ Now ${context} deployment is ready`,
   })
 
-  function onError(err) {
+  const onError = err => {
     safeError(err)
-    updateStatus({
+    updateGitHubStatus({
       state: 'error',
       description: `▲ Now ${context} deployment failed. See Travis logs for details.`,
     })
   }
 
-  function updateStatus(options) {
-    const mergedOptions = Object.assign({ context, targetUrl }, options)
-    const { description, targetUrl: url } = mergedOptions
-    console.log(`${description}: ${url}`)
-    ghRepo.status(sha, mergedOptions, logError('setting complete status'))
+  const updateGitHubStatus = options => {
+    const mergedOptions = Object.assign({ context, buildUrl }, options)
+    console.log(`${mergedOptions.description}: ${mergedOptions.buildUrl}`)
+    repo.status(sha, mergedOptions, logOnError('setting complete status'))
   }
 
-  function aliasDeploy() {
+  const aliasDeploy = () => {
     // if we're production, then we need to alias things
     console.log(`↪️ We're building for production, so let's alias this!`)
-    const aliasArgs = ['alias', 'set', targetUrl, nowAlias, '--token', nowToken]
+    const aliasArgs = ['alias', 'set', buildUrl, NOW_ALIAS, '--token', NOW_TOKEN]
     safeLog('spawning shell with command:', `now ${aliasArgs.join(' ')}`)
     return spawnPromise('now', aliasArgs)
   }
 
-  function spawnPromise(...args) {
+  const spawnPromise = (...args) => {
     return new Promise((resolve, reject) => {
       const child = spawn(...args)
       let stdout = ''
@@ -159,26 +181,26 @@ async function deploy(context, sha) {
     })
   }
 
-  function safeLog(...args) {
+  const safeLog = (...args) => {
     const safeArgs = args.map(s => safeify(s))
     console.log(...safeArgs)
   }
 
-  function safeError(...args) {
+  const safeError = (...args) => {
     const safeArgs = args.map(s => safeify(s))
     console.error(...safeArgs)
   }
 
-  function safeify(s, safed = []) {
+  const safeify = (s, safed = []) => {
     if (safed.indexOf(s) !== -1) {
       return 'CIRCULAR'
     }
     safed.push(s)
     if (typeof s === 'string') {
       return s
-        .split(nowToken)
+        .split(NOW_TOKEN)
         .join('NOW_TOKEN')
-        .split(githubToken)
+        .split(GH_TOKEN)
         .join('GITHUB_TOKEN')
     } else if (typeof s === 'object' && s !== null) {
       return Object.keys(s).reduce((acc, k) => {
@@ -191,42 +213,33 @@ async function deploy(context, sha) {
   }
 }
 
-const { TRAVIS_EVENT_TYPE, TRAVIS_PULL_REQUEST_SHA, TRAVIS_COMMIT } = process.env
+// Deploy to now.sh
 
-switch (TRAVIS_EVENT_TYPE) {
-  case 'pull_request': {
-    deploy('staging', TRAVIS_PULL_REQUEST_SHA)
-    break
-  }
-  case 'push': {
-    deploy('production', TRAVIS_COMMIT)
-    break
-  }
-  default: {
-    console.log(`${TRAVIS_EVENT_TYPE} is not supported by now-travis`)
-  }
-}
+const travisBuildUrl =
+  TRAVIS_INSTANCE === 'com'
+    ? `https://travis-ci.com/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+    : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
 
-function isFork() {
-  const { TRAVIS_PULL_REQUEST_SLUG, TRAVIS_REPO_SLUG } = process.env
-  if (!TRAVIS_PULL_REQUEST_SLUG) {
-    return false
-  }
-  const [prOwner] = TRAVIS_PULL_REQUEST_SLUG.split('/')
-  const [owner] = TRAVIS_REPO_SLUG.split('/')
-  return owner !== prOwner
-}
-
-function getUrl(content) {
-  const urls = content.match(urlRegex()) || []
-
-  return urls.map(url => normalizeUrl(url.trim().replace(/\.+$/, '')))[0]
-}
-
-function logError(message) {
-  return function onError(error) {
-    if (error) {
-      console.log(message, error)
+if (isFork()) {
+  console.log(`▲ Now ${travisBuildUrl} deployment is skipped for forks...`)
+} else {
+  switch (TRAVIS_EVENT_TYPE) {
+    case 'pull_request': {
+      deploy('staging', travisBuildUrl, TRAVIS_PULL_REQUEST_SHA).then(null, error =>
+        console.error(`Deployment failed: ${error}`)
+      )
+      break
+    }
+    case 'push': {
+      deploy('production', travisBuildUrl, TRAVIS_COMMIT).then(null, error =>
+        console.error(`Deployment failed: ${error}`)
+      )
+      break
+    }
+    default: {
+      console.error(
+        `TRAVIS_EVENT_TYPE=${TRAVIS_EVENT_TYPE} is not supported by now-travis`
+      )
     }
   }
 }
