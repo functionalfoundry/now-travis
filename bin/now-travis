@@ -92,7 +92,7 @@ const deploy = async (context, buildUrl, sha) => {
     NOW_NAME,
     ROOT_DIR,
   ]
-  if (NOW_STATIC !== 'false' && NOW_STATIC !== false) {
+  if (NOW_STATIC === 'true' || NOW_STATIC === true) {
     nowArgs.push('--static')
   }
   if (NOW_TEAM) {
@@ -150,7 +150,7 @@ const deploy = async (context, buildUrl, sha) => {
 
   function updateGitHubStatus(options) {
     const mergedOptions = Object.assign({ context, targetUrl: buildUrl }, options)
-    console.log(`${mergedOptions.description}: ${mergedOptions.buildUrl}`)
+    console.log(`${mergedOptions.description}: ${mergedOptions.targetUrl}`)
     repo.status(sha, mergedOptions, logOnError('Failed to update GitHub repo status'))
   }
 
