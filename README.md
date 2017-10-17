@@ -20,6 +20,7 @@ This version of now-travis requires the following environment
 variables to be defined:
 
 * `ROOT_DIR` — the directory to deploy
+* `TRAVIS_INSTANCE` — `com` or `org`
 * `NOW_NAME` — the name to use for deployments
 * `NOW_ALIAS` — the now.sh alias to use
 * `NOW_TOKEN` — an access token to deploy to now.sh

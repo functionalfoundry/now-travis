@@ -22,10 +22,15 @@ async function deploy(context, sha) {
     NOW_ALIAS: nowAlias,
     NOW_TOKEN: nowToken,
     GH_TOKEN: githubToken,
+    TRAVIS_INSTANCE: travisInstance,
   } = process.env
 
   if (!rootDir) {
     throw new Error('Missing required environment variable ROOT_DIR')
+  }
+
+  if (!travisInstance) {
+    throw new Error('Missing required environment variable TRAVIS_INSTANCE (com, org)')
   }
 
   if (!githubToken) {
@@ -45,7 +50,10 @@ async function deploy(context, sha) {
   }
 
   const { TRAVIS_REPO_SLUG, TRAVIS_BUILD_ID } = process.env
-  let targetUrl = `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+  let targetUrl =
+    travisInstance === 'com'
+      ? `https://travis-ci.com/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+      : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
 
   const client = github.client(githubToken)
   const ghRepo = client.repo(process.env.TRAVIS_REPO_SLUG)
