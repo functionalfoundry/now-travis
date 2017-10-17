@@ -81,6 +81,7 @@ const deploy = async (context, buildUrl, sha) => {
   updateGitHubStatus({
     state: 'pending',
     description: `▲ Now / ${context} deployment pending`,
+    target_url: buildUrl,
   })
 
   // Prepare deployment
@@ -123,6 +124,7 @@ const deploy = async (context, buildUrl, sha) => {
   updateGitHubStatus({
     state: 'pending',
     description: `▲ Now / ${context} deployment build started...`,
+    target_url: deploymentUrl,
   })
 
   console.log(`▲ Now / Deployment started. Pinging ${deploymentUrl} until it's live!`)
@@ -147,7 +149,7 @@ const deploy = async (context, buildUrl, sha) => {
   updateGitHubStatus({
     state: 'success',
     description: `▲ Now / ${context} deployment is live`,
-    targetUrl: deploymentUrl,
+    target_url: deploymentUrl,
   })
 
   function onError(err) {
@@ -155,6 +157,7 @@ const deploy = async (context, buildUrl, sha) => {
     updateGitHubStatus({
       state: 'error',
       description: `▲ Now / ${context} deployment failed. See Travis logs for details`,
+      target_url: deploymentUrl,
     })
   }
 
