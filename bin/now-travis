@@ -107,14 +107,14 @@ const deploy = async (context, buildUrl, sha) => {
       `AUTH_PASSWORD=${NOW_AUTH_PASSWORD}`
     )
   }
-  safeLog('▲ Now / Running command:', `now ${nowArgs.join(' ')}`)
+  safeLog('▲ Now / running command:', `now ${nowArgs.join(' ')}`)
 
   // Perform deployment
 
   const result = await spawnPromise('./node_modules/.bin/now', nowArgs)
   const deploymentUrl = normalizedUrl(result)
 
-  console.log('▲ Now / Deployment URL:', deploymentUrl)
+  console.log('▲ Now / deployment URL:', deploymentUrl)
 
   // Wait for the deployment to go live
   // Check on the site for ten minutes every 5 seconds
@@ -125,7 +125,7 @@ const deploy = async (context, buildUrl, sha) => {
     target_url: deploymentUrl,
   })
 
-  console.log(`▲ Now / Deployment started. Pinging ${deploymentUrl} until it's live!`)
+  console.log(`▲ Now / deployment started. Pinging ${deploymentUrl} until it's live!`)
 
   try {
     await awaitUrl(deploymentUrl, {
@@ -142,7 +142,7 @@ const deploy = async (context, buildUrl, sha) => {
     }
   }
 
-  console.log('▲ Now / Up and running!')
+  console.log('▲ Now / up and running!')
 
   // Alias the deployment if we're building a commit on master
 
@@ -152,7 +152,7 @@ const deploy = async (context, buildUrl, sha) => {
 
   // Done, update GitHub one last time
 
-  console.log('▲ Now / All done!')
+  console.log('▲ Now / all done!')
   updateGitHubStatus({
     state: 'success',
     description: `▲ Now / ${context} deployment is live`,
@@ -176,9 +176,9 @@ const deploy = async (context, buildUrl, sha) => {
 
   function aliasDeploy() {
     // if we're production, then we need to alias things
-    console.log(`▲ Now / Building for production —> Update alias`)
+    console.log(`▲ Now / building for production —> Update alias`)
     const aliasArgs = ['alias', 'set', deploymentUrl, NOW_ALIAS, '--token', NOW_TOKEN]
-    safeLog('▲ Now / Running command:', `now ${aliasArgs.join(' ')}`)
+    safeLog('▲ Now / running command:', `now ${aliasArgs.join(' ')}`)
     return spawnPromise('./node_modules/.bin/now', aliasArgs)
   }
 
@@ -251,18 +251,18 @@ const travisBuildUrl =
     : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
 
 if (isFork()) {
-  console.log(`▲ Now / Building a fork —> Skip ${travisBuildUrl} deployment`)
+  console.log(`▲ Now / building a fork —> Skip ${travisBuildUrl} deployment`)
 } else {
   switch (TRAVIS_EVENT_TYPE) {
     case 'pull_request': {
       deploy('staging', travisBuildUrl, TRAVIS_PULL_REQUEST_SHA).then(null, error =>
-        console.error('▲ Now / Deployment failed:', error)
+        console.error('▲ Now / deployment failed:', error)
       )
       break
     }
     case 'push': {
       deploy('production', travisBuildUrl, TRAVIS_COMMIT).then(null, error =>
-        console.error(`▲ Now / Deployment failed:`, error)
+        console.error(`▲ Now / deployment failed:`, error)
       )
       break
     }
