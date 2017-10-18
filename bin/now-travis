@@ -133,7 +133,9 @@ const deploy = async (context, buildUrl, sha) => {
       tries: 120,
     })
   } catch (error) {
-    if (!(NOW_AUTH_USER && NOW_AUTH_PASSWORD && error.statusCode === 401)) {
+    if (NOW_AUTH_USER !== '' && NOW_AUTH_PASSWORD !== '' && error.statusCode === 401) {
+      // All good, we're expecting this since we're not authenticated
+    } else {
       console.error('Error waiting for the deployment to go live')
       onError(error)
       throw error
