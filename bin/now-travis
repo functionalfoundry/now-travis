@@ -147,6 +147,9 @@ const deploy = async (context, buildUrl, sha) => {
   // Alias the deployment if we're building a commit on master
 
   if (context === 'production') {
+    // Sleep for five seconds to let the now.sh register the new deployment
+    await new Promise((resolve, reject) => setTimeout(resolve, 5000))
+
     await aliasDeploy()
   }
 
