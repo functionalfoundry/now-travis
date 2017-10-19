@@ -4,7 +4,7 @@ const github = require('octonode')
 const spawn = require('cross-spawn')
 const normalizeUrl = require('normalize-url')
 const urlRegex = require('url-regex')
-const awaitUrl = require('await-url')
+const awaitUrl = require('@functionalfoundry/await-url')
 
 // Extract environment variables
 
@@ -117,7 +117,8 @@ const deploy = async (context, buildUrl, sha) => {
   console.log('▲ Now / deployment URL:', deploymentUrl)
 
   // Wait for the deployment to go live
-  // Check on the site for ten minutes every 5 seconds
+  // Check on the site for ten minutes every 5 seconds (with a 10s timeout
+  // used for each attempt -> 40 attempts)
 
   updateGitHubStatus({
     state: 'pending',
@@ -130,7 +131,7 @@ const deploy = async (context, buildUrl, sha) => {
   try {
     await awaitUrl(deploymentUrl, {
       interval: 5000,
-      tries: 120,
+      tries: 40,
     })
   } catch (error) {
     if (NOW_AUTH_USER !== '' && NOW_AUTH_PASSWORD !== '' && error.statusCode === 401) {
@@ -166,7 +167,7 @@ const deploy = async (context, buildUrl, sha) => {
     safeError(err)
     updateGitHubStatus({
       state: 'error',
-      description: `▲ Now / ${context} deployment failed. See Travis logs for details`,
+      description: `▲ Now / ${context} deployment failed`,
       target_url: deploymentUrl,
     })
   }

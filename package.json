@@ -13,7 +13,7 @@
     "now-travis": "./bin/now-travis"
   },
   "dependencies": {
-    "await-url": "^0.3.0",
+    "@functionalfoundry/await-url": "^0.3.2",
     "cross-spawn": "^5.1.0",
     "normalize-url": "^1.9.1",
     "now": "^8.3.10",
