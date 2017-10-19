@@ -2,9 +2,9 @@
 # yarn lockfile v1
 
 
-"@functionalfoundry/await-url@^0.3.2":
-  version "0.3.2"
-  resolved "https://registry.yarnpkg.com/@functionalfoundry/await-url/-/await-url-0.3.2.tgz#925a4e604a245c917eec2bb8ec5a8ad5c1c6773d"
+"@functionalfoundry/await-url@^0.3.3":
+  version "0.3.3"
+  resolved "https://registry.yarnpkg.com/@functionalfoundry/await-url/-/await-url-0.3.3.tgz#3e043e5551a5cf984f445781020d3dd69ac5d764"
   dependencies:
     got "^7.0.0"
     meow "^3.7.0"
