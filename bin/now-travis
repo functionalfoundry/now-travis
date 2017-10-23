@@ -4,7 +4,7 @@ const github = require('octonode')
 const spawn = require('cross-spawn')
 const normalizeUrl = require('normalize-url')
 const urlRegex = require('url-regex')
-const awaitUrl = require('@functionalfoundry/await-url')
+const Now = require('now-client')
 
 // Extract environment variables
 
@@ -50,6 +50,39 @@ ensureVar(NOW_NAME, 'NOW_NAME is not defined')
 ensureVar(NOW_TOKEN, 'NOW_TOKEN is not defined')
 ensureVar(ROOT_DIR, 'ROOT_DIR (e.g. "storybook-static/") is not defined')
 ensureVar(TRAVIS_INSTANCE, 'TRAVIS_INSTANCE ("com" or "org") is not defined')
+
+// Now utilities
+
+const getDeploymentByUrl = async (now, url) => {
+  const urlWithoutProtocol = url.replace(/https?:\/\//, '')
+  const deployments = await now.getDeployments()
+  return deployments.find(deployment => deployment.url === urlWithoutProtocol)
+}
+
+const waitForDeploymentState = (
+  now,
+  { deployment, state, timeout = 10000, interval = 1000 }
+) => {
+  const getDeploymentState = async (now, id) => {
+    return (await now.getDeployment(id)).state
+  }
+
+  return new Promise(async (resolve, reject) => {
+    const startTime = Date.now().valueOf()
+
+    const handle = setInterval(async () => {
+      if (Date.now().valueOf() > startTime + timeout) {
+        clearInterval(handle)
+        reject(new Error(`Timeout waiting for deployment state ${state}`))
+      }
+
+      if ((await getDeploymentState(now, deployment.uid)) === state) {
+        clearInterval(handle)
+        resolve(deployment)
+      }
+    }, interval)
+  })
+}
 
 // Deployment logic
 
@@ -117,8 +150,6 @@ const deploy = async (context, buildUrl, sha) => {
   console.log('▲ Now / deployment URL:', deploymentUrl)
 
   // Wait for the deployment to go live
-  // Check on the site for ten minutes every 5 seconds (with a 10s timeout
-  // used for each attempt -> 40 attempts)
 
   updateGitHubStatus({
     state: 'pending',
@@ -126,32 +157,39 @@ const deploy = async (context, buildUrl, sha) => {
     target_url: deploymentUrl,
   })
 
-  console.log(`▲ Now / deployment started. Pinging ${deploymentUrl} until it's live!`)
+  console.log(`▲ Now / waiting for deployment to go live: ${deploymentUrl}`)
 
+  let now
+  let deployment
   try {
-    await awaitUrl(deploymentUrl, {
-      interval: 5000,
-      tries: 40,
+    now = new Now(NOW_TOKEN, NOW_TEAM)
+    deployment = getDeploymentByUrl(now, deploymentUrl)
+
+    await waitForDeploymentState(now, {
+      deployment: deployment,
+      state: 'READY',
+      timeout: 1000 * 60 * 5, // wait for 5 minutes
+      interval: 5000, // every 5 secons
     })
   } catch (error) {
-    if (NOW_AUTH_USER !== '' && NOW_AUTH_PASSWORD !== '' && error.statusCode === 401) {
-      // All good, we're expecting this since we're not authenticated
-    } else {
-      console.error('Error waiting for the deployment to go live')
-      onError(error)
-      throw error
-    }
+    console.error('Error waiting for the deployment to go live')
+    onError(error)
+    throw error
   }
 
   console.log('▲ Now / up and running!')
 
   // Alias the deployment if we're building a commit on master
 
-  if (context === 'production') {
-    // Sleep for five seconds to let the now.sh register the new deployment
-    await new Promise((resolve, reject) => setTimeout(resolve, 5000))
-
-    await aliasDeploy()
+  if (context === 'production' && now !== undefined && deployment !== undefined) {
+    console.log(`▲ Now / building for production —> update alias`)
+    try {
+      await now.createAlias(deployment.uid, NOW_ALIAS)
+    } catch (error) {
+      console.error('Error creating the alias for the deployment')
+      onError(error)
+      throw error
+    }
   }
 
   // Done, update GitHub one last time
@@ -168,7 +206,7 @@ const deploy = async (context, buildUrl, sha) => {
     updateGitHubStatus({
       state: 'error',
       description: `▲ Now / ${context} deployment failed`,
-      target_url: deploymentUrl,
+      target_url: travisBuildUrl,
     })
   }
 
@@ -176,14 +214,6 @@ const deploy = async (context, buildUrl, sha) => {
     const mergedOptions = Object.assign({ context, target_url: buildUrl }, options)
     console.log(`${mergedOptions.description}: ${mergedOptions.target_url}`)
     repo.status(sha, mergedOptions, logOnError('Failed to update GitHub repo status'))
-  }
-
-  function aliasDeploy() {
-    // if we're production, then we need to alias things
-    console.log(`▲ Now / building for production —> Update alias`)
-    const aliasArgs = ['alias', 'set', deploymentUrl, NOW_ALIAS, '--token', NOW_TOKEN]
-    safeLog('▲ Now / running command:', `now ${aliasArgs.join(' ')}`)
-    return spawnPromise('./node_modules/.bin/now', aliasArgs)
   }
 
   function spawnPromise(...args) {
@@ -255,7 +285,7 @@ const travisBuildUrl =
     : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
 
 if (isFork()) {
-  console.log(`▲ Now / building a fork —> Skip ${travisBuildUrl} deployment`)
+  console.log(`▲ Now / building a fork —> skip ${travisBuildUrl} deployment`)
 } else {
   switch (TRAVIS_EVENT_TYPE) {
     case 'pull_request': {
