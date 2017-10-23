@@ -186,9 +186,13 @@ const deploy = async (context, buildUrl, sha) => {
     try {
       await now.createAlias(deployment.uid, NOW_ALIAS)
     } catch (error) {
-      console.error('Error creating the alias for the deployment')
-      onError(error)
-      throw error
+      if (error.error.code === 409) {
+        console.log('The alias is already set to the deployment')
+      } else {
+        console.error('Error creating the alias for the deployment')
+        onError(error)
+        throw error
+      }
     }
   }
 
