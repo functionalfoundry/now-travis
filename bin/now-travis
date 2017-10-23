@@ -64,7 +64,7 @@ const CI_PROVIDERS = {
         return prOwner !== repoOwner
       }
     },
-    context: () =>
+    stage: () =>
       process.env.TRAVIS_EVENT_TYPE === 'pull_request' ? 'staging' : 'production',
     repoSlug: () => process.env.TRAVIS_REPO_SLUG,
     buildUrl: () => {
@@ -83,11 +83,7 @@ const CI_PROVIDERS = {
       ensureVar(process.env.BUILDKITE_COMMIT, 'BUILDKITE_COMMIT is not defined')
       ensureVar(process.env.BUILDKITE_REPO, 'BUILDKITE_REPO is not defined')
     },
-    context: () =>
-      process.env.BUILDKITE_PULL_REQUEST === 'true' ||
-      process.env.BUILDKITE_PULL_REQUEST === true
-        ? 'staging'
-        : 'production',
+    stage: () => (process.env.BUILDKITE_BRANCH === 'master' ? 'production' : 'staging'),
     repoSlug: () => slugFromUrl(process.env.BUILDKITE_REPO),
     isFork: () => {
       const { BUILDKITE_PULL_REQUEST_REPO, BUILDKITE_REPO } = process.env
@@ -176,7 +172,7 @@ const deploy = async provider => {
 
   updateGitHubStatus({
     state: 'pending',
-    description: `▲ Now / ${provider.context()} deployment pending`,
+    description: `▲ Now / ${provider.stage()} deployment pending`,
     target_url: provider.buildUrl(),
   })
 
@@ -215,7 +211,7 @@ const deploy = async provider => {
 
   updateGitHubStatus({
     state: 'pending',
-    description: `▲ Now / ${provider.context()} deployment build started...`,
+    description: `▲ Now / ${provider.stage()} deployment build started...`,
     target_url: deploymentUrl,
   })
 
@@ -244,7 +240,7 @@ const deploy = async provider => {
   // Alias the deployment if we're building a commit on master
 
   if (
-    provider.context() === 'production' &&
+    provider.stage() === 'production' &&
     now !== undefined &&
     deployment !== undefined
   ) {
@@ -271,7 +267,7 @@ const deploy = async provider => {
   console.log('▲ Now / all done!')
   updateGitHubStatus({
     state: 'success',
-    description: `▲ Now / ${provider.context()} deployment is live`,
+    description: `▲ Now / ${provider.stage()} deployment is live`,
     target_url: deploymentUrl,
   })
 
@@ -279,7 +275,7 @@ const deploy = async provider => {
     safeError(err)
     updateGitHubStatus({
       state: 'error',
-      description: `▲ Now / ${provider.context()} deployment failed`,
+      description: `▲ Now / ${provider.stage()} deployment failed`,
       target_url: provider.buildUrl(),
     })
   }
@@ -287,7 +283,7 @@ const deploy = async provider => {
   function updateGitHubStatus(options) {
     const mergedOptions = Object.assign(
       {
-        context: `${NOW_NAME}: ${provider.context()}`,
+        context: `${NOW_NAME}: ${provider.stage()}`,
         target_url: provider.buildUrl(),
       },
       options
@@ -368,7 +364,7 @@ const provider = detectCIProvider()
 if (isFork()) {
   console.log(`▲ Now / building a fork —> skip ${provider.buildUrl()} deployment`)
 } else {
-  switch (provider.context()) {
+  switch (provider.stage()) {
     case 'staging':
     case 'production': {
       deploy(provider).then(null, error =>
