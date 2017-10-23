@@ -20,14 +20,6 @@ const {
   NOW_TEAM,
   NOW_TOKEN,
   ROOT_DIR,
-  TRAVIS,
-  TRAVIS_BUILD_ID,
-  TRAVIS_COMMIT,
-  TRAVIS_EVENT_TYPE,
-  TRAVIS_INSTANCE,
-  TRAVIS_PULL_REQUEST_SHA,
-  TRAVIS_PULL_REQUEST_SLUG,
-  TRAVIS_REPO_SLUG,
 } = process.env
 
 // Validate environment variables
@@ -38,18 +30,96 @@ const ensureVar = (v, errmsg) => {
   }
 }
 
-ensureVar(CI, 'Could not detect Travis CI environment')
-ensureVar(TRAVIS, 'Could not detect Travis CI environment')
-ensureVar(TRAVIS_BUILD_ID, 'TRAVIS_BUILD_ID is not defined')
-ensureVar(TRAVIS_EVENT_TYPE, 'TRAVIS_EVENT_TYPE is not defined')
-ensureVar(TRAVIS_REPO_SLUG, 'TRAVIS_REPO_SLUG is not defined')
-
+ensureVar(CI, 'Could not detect CI environment')
 ensureVar(GH_TOKEN, 'GH_TOKEN is not defined')
 ensureVar(NOW_ALIAS, 'NOW_ALIAS is not defined')
 ensureVar(NOW_NAME, 'NOW_NAME is not defined')
 ensureVar(NOW_TOKEN, 'NOW_TOKEN is not defined')
 ensureVar(ROOT_DIR, 'ROOT_DIR (e.g. "storybook-static/") is not defined')
-ensureVar(TRAVIS_INSTANCE, 'TRAVIS_INSTANCE ("com" or "org") is not defined')
+
+// CI utilities
+
+const slugFromUrl = url => url.replace(/^git@github.com:/, '').replace(/\.git$/, '')
+
+const CI_PROVIDERS = {
+  travis: {
+    detect: () => process.env.TRAVIS,
+    ensureVars: () => {
+      ensureVar(process.env.TRAVIS_BUILD_ID, 'TRAVIS_BUILD_ID is not defined')
+      ensureVar(process.env.TRAVIS_EVENT_TYPE, 'TRAVIS_EVENT_TYPE is not defined')
+      ensureVar(process.env.TRAVIS_REPO_SLUG, 'TRAVIS_REPO_SLUG is not defined')
+      ensureVar(
+        process.env.TRAVIS_INSTANCE,
+        'TRAVIS_INSTANCE ("com" or "org") is not defined'
+      )
+    },
+    isFork: () => {
+      const { TRAVIS_PULL_REQUEST_SLUG, TRAVIS_REPO_SLUG } = process.env
+
+      if (!TRAVIS_PULL_REQUEST_SLUG) {
+        return false
+      } else {
+        const [prOwner] = TRAVIS_PULL_REQUEST_SLUG.split('/')
+        const [repoOwner] = TRAVIS_REPO_SLUG.split('/')
+        return prOwner !== repoOwner
+      }
+    },
+    context: () =>
+      process.env.TRAVIS_EVENT_TYPE === 'pull_request' ? 'staging' : 'production',
+    repoSlug: () => process.env.TRAVIS_REPO_SLUG,
+    buildUrl: () => {
+      const { TRAVIS_INSTANCE, TRAVIS_REPO_SLUG, TRAVIS_BUILD_ID } = process.env
+      return TRAVIS_INSTANCE === 'com'
+        ? `https://travis-ci.com/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+        : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+    },
+    sha: () => process.env.TRAVIS_PULL_REQUEST_SHA || process.env.TRAVIS_COMMIT,
+  },
+
+  buildkite: {
+    detect: () => process.env.BUILDKITE,
+    ensureVars: () => {
+      ensureVar(process.env.BUILDKITE_BUILD_URL, 'BUILDKITE_BUILD_URL is not defined')
+      ensureVar(process.env.BUILDKITE_COMMIT, 'BUILDKITE_COMMIT is not defined')
+      ensureVar(process.env.BUILDKITE_REPO, 'BUILDKITE_REPO is not defined')
+    },
+    context: () =>
+      process.env.BUILDKITE_PULL_REQUEST === 'true' ||
+      process.env.BUILDKITE_PULL_REQUEST === true
+        ? 'staging'
+        : 'production',
+    repoSlug: () => slugFromUrl(process.env.BUILDKITE_REPO),
+    isFork: () => {
+      const { BUILDKITE_PULL_REQUEST_REPO, BUILDKITE_REPO } = process.env
+
+      if (!BUILDKITE_PULL_REQUEST_REPO) {
+        return false
+      } else {
+        const [prOwner] = slugFromUrl(BUILDKITE_REPO).split('/')
+        const [repoOwner] = slugFromUrl(BUILDKITE_PULL_REQUEST_REPO).split('/')
+        return prOwner !== repoOwner
+      }
+    },
+    buildUrl: () => process.env.BUILDKITE_BUILD_URL,
+    sha: () => process.env.BUILDKITE_COMMIT,
+  },
+}
+
+const detectCIProvider = () => {
+  const providerName = Object.keys(CI_PROVIDERS).find(name => {
+    if (CI_PROVIDERS[name].detect()) {
+      return true
+    } else {
+      return false
+    }
+  })
+
+  if (providerName) {
+    return CI_PROVIDERS[providerName]
+  } else {
+    throw new Error('Could not detect CI provider (supported: Travis, Buildkite)')
+  }
+}
 
 // Now utilities
 
@@ -86,15 +156,7 @@ const waitForDeploymentState = (
 
 // Deployment logic
 
-const isFork = () => {
-  if (!TRAVIS_PULL_REQUEST_SLUG) {
-    return false
-  } else {
-    const [prOwner] = TRAVIS_PULL_REQUEST_SLUG.split('/')
-    const [repoOwner] = TRAVIS_REPO_SLUG.split('/')
-    return prOwner !== repoOwner
-  }
-}
+const isFork = () => {}
 
 const normalizedUrl = content => {
   const urls = content.match(urlRegex()) || []
@@ -108,14 +170,14 @@ const logOnError = message =>
     }
   }
 
-const deploy = async (context, buildUrl, sha) => {
+const deploy = async provider => {
   const client = github.client(GH_TOKEN)
-  const repo = client.repo(TRAVIS_REPO_SLUG)
+  const repo = client.repo(provider.repoSlug())
 
   updateGitHubStatus({
     state: 'pending',
-    description: `▲ Now / ${context} deployment pending`,
-    target_url: buildUrl,
+    description: `▲ Now / ${provider.context()} deployment pending`,
+    target_url: provider.buildURl(),
   })
 
   // Prepare deployment
@@ -153,7 +215,7 @@ const deploy = async (context, buildUrl, sha) => {
 
   updateGitHubStatus({
     state: 'pending',
-    description: `▲ Now / ${context} deployment build started...`,
+    description: `▲ Now / ${provider.context()} deployment build started...`,
     target_url: deploymentUrl,
   })
 
@@ -181,7 +243,11 @@ const deploy = async (context, buildUrl, sha) => {
 
   // Alias the deployment if we're building a commit on master
 
-  if (context === 'production' && now !== undefined && deployment !== undefined) {
+  if (
+    provider.context() === 'production' &&
+    now !== undefined &&
+    deployment !== undefined
+  ) {
     console.log(`▲ Now / building for production —> update alias`)
     try {
       await now.createAlias(deployment.uid, NOW_ALIAS)
@@ -205,7 +271,7 @@ const deploy = async (context, buildUrl, sha) => {
   console.log('▲ Now / all done!')
   updateGitHubStatus({
     state: 'success',
-    description: `▲ Now / ${context} deployment is live`,
+    description: `▲ Now / ${provider.context()} deployment is live`,
     target_url: deploymentUrl,
   })
 
@@ -213,21 +279,25 @@ const deploy = async (context, buildUrl, sha) => {
     safeError(err)
     updateGitHubStatus({
       state: 'error',
-      description: `▲ Now / ${context} deployment failed`,
-      target_url: travisBuildUrl,
+      description: `▲ Now / ${provider.context()} deployment failed`,
+      target_url: provider.buildUrl(),
     })
   }
 
   function updateGitHubStatus(options) {
     const mergedOptions = Object.assign(
       {
-        context: `${NOW_NAME}: ${context}`,
-        target_url: buildUrl,
+        context: `${NOW_NAME}: ${provider.context()}`,
+        target_url: provider.buildUrl(),
       },
       options
     )
     console.log(`${mergedOptions.description}: ${mergedOptions.target_url}`)
-    repo.status(sha, mergedOptions, logOnError('Failed to update GitHub repo status'))
+    repo.status(
+      provider.sha(),
+      mergedOptions,
+      logOnError('Failed to update GitHub repo status')
+    )
   }
 
   function spawnPromise(...args) {
@@ -293,31 +363,21 @@ const deploy = async (context, buildUrl, sha) => {
 
 // Deploy to now.sh
 
-const travisBuildUrl =
-  TRAVIS_INSTANCE === 'com'
-    ? `https://travis-ci.com/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
-    : `https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_BUILD_ID}`
+const provider = detectCIProvider()
 
 if (isFork()) {
-  console.log(`▲ Now / building a fork —> skip ${travisBuildUrl} deployment`)
+  console.log(`▲ Now / building a fork —> skip ${provider.buildUrl()} deployment`)
 } else {
-  switch (TRAVIS_EVENT_TYPE) {
-    case 'pull_request': {
-      deploy('staging', travisBuildUrl, TRAVIS_PULL_REQUEST_SHA).then(null, error =>
+  switch (provider.context()) {
+    case 'staging':
+    case 'production': {
+      deploy(provider).then(null, error =>
         console.error('▲ Now / deployment failed:', error)
       )
       break
     }
-    case 'push': {
-      deploy('production', travisBuildUrl, TRAVIS_COMMIT).then(null, error =>
-        console.error(`▲ Now / deployment failed:`, error)
-      )
-      break
-    }
     default: {
-      console.error(
-        `▲ Now / TRAVIS_EVENT_TYPE=${TRAVIS_EVENT_TYPE} is not supported by now-travis`
-      )
+      console.error(`▲ Now / Event not supported by now-travis`)
     }
   }
 }
