@@ -1,6 +1,6 @@
 {
   "name": "@functionalfoundry/now-travis",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "description": "Deploy to now.sh from Travis",
   "repository": "https://github.com/functionalfoundry/now-travis",
   "author": "Jannis Pohlmann <jannis@functionalfoundry.com>",
