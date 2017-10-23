@@ -177,7 +177,7 @@ const deploy = async provider => {
   updateGitHubStatus({
     state: 'pending',
     description: `▲ Now / ${provider.context()} deployment pending`,
-    target_url: provider.buildURl(),
+    target_url: provider.buildUrl(),
   })
 
   // Prepare deployment
