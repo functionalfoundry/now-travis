@@ -163,7 +163,7 @@ const deploy = async (context, buildUrl, sha) => {
   let deployment
   try {
     now = new Now(NOW_TOKEN, NOW_TEAM)
-    deployment = getDeploymentByUrl(now, deploymentUrl)
+    deployment = await getDeploymentByUrl(now, deploymentUrl)
 
     await waitForDeploymentState(now, {
       deployment: deployment,
